@@ -1,0 +1,11 @@
+Lancer mosquitto avec la configuration mise à jour :
+"C:\Program Files\mosquitto\mosquitto.exe" -c "C:\Program Files\mosquitto\mosquitto.conf" -v
+
+S'abonner au canal mosquitto : 
+"C:\Program Files\mosquitto\mosquitto_sub.exe" -h localhost -t test -v
+
+
+
+
+"C:\Program Files\mosquitto\mosquitto_pub.exe" -h 
+localhost -t "v3/projet-iot-cesi-24-27@ttn/devices/test-device/down/push" -m "{"downlinks":[{"f_port":1,"frm_payload":"AQID","priority":"NORMAL"}]}" -q 1
