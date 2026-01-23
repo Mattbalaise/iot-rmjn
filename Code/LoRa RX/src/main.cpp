@@ -9,8 +9,12 @@
 // =====================
 // Sécurité LoRa P2P
 // =====================
+#define BUFFER_MSG_SIZE 16
 const char* HMAC_KEY = "super_secret_key_123";
 unsigned long lastSeq = 0;
+AES256 aes;
+char key[32] = "romainsousfrozen";
+char resultDecrypted[100];
 
 // =====================
 // LoRa
@@ -38,14 +42,29 @@ PubSubClient mqttClient(wifiClient);
 // Fonctions utilitaires
 // =====================
 
-// HEX → ASCII
-String hexToString(String hex) {
+String hexToString(const String& hex) 
+{
   String text = "";
+  // On traite de 2 en 2 caractères
   for (unsigned int i = 0; i < hex.length(); i += 2) {
-    char c = (char)strtol(hex.substring(i, i + 2).c_str(), NULL, 16);
+    // Vérifie qu'il reste au moins 2 caractères
+    if (i + 1 >= hex.length()) break;
+
+    String hexByte = hex.substring(i, i + 2);
+    char c = (char) strtol(hexByte.c_str(), NULL, 16);
     text += c;
   }
   return text;
+}
+
+
+String convertHex(const uint8_t* data, size_t len) {
+  String hex = "";
+  for (size_t i = 0; i < len; i++) {
+    if (data[i] < 0x10) hex += "0";       // Ajout d'un zéro pour chaque valeur < 0x10
+    hex += String(data[i], HEX);
+  }
+  return hex;
 }
 
 // Connexion MQTT
@@ -65,8 +84,9 @@ void reconnectMQTT() {
 // =====================
 // decrypt message
 // =====================
-String decrypt_message(String message) {
-
+String decrypt_message(const char* msg, char resultDecrypted[BUFFER_MSG_SIZE]) 
+{
+    aes.decryptBlock((uint8_t*)resultDecrypted, (const uint8_t*)msg);
 }
 
 // =====================
@@ -128,18 +148,18 @@ void loop() {
       int lastQuote  = input.lastIndexOf('\"');
 
       if (lastQuote > firstQuote) {
-
-        // 1️⃣ Décodage
-        String hexMsg = input.substring(firstQuote + 1, lastQuote);
-        String vraiMessage = hexToString(hexMsg);
-        Serial.println("Message reçu :");
-        Serial.println(vraiMessage);
-
-        mqttClient.publish("lora/reception", vraiMessage.c_str());
-        Serial.println("Envoyé au broker MQTT");
+        
+          String hexMsg = input.substring(firstQuote + 1, lastQuote);
+          // Décodage
+          char msgDecrypted[BUFFER_MSG_SIZE];
+          decrypt_message(hexMsg.c_str(), msgDecrypted);
+          Serial.println(" hex decrypted : " + String(msgDecrypted));
+          // String msgfinal = hexToString(msgDecrypted);
+          // Serial.println("msg decrypted : " + msgfinal);
+          mqttClient.publish("lora/reception", msgDecrypted);
+          Serial.println("Envoyé au broker MQTT");
       }
     }
-
     digitalWrite(LED_BUILTIN, LOW);
     delay(500);
   }
