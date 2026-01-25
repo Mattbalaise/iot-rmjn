@@ -11,10 +11,15 @@
 // =====================
 // Sécurité LoRa P2P
 // =====================
+<<<<<<< HEAD
 #define PAYLOAD_SIZE 64
 #define MESSAGE_SIZE 32  // Taille max message
 #define HMAC_SIZE 32     // SHA256 HMAC
 char hmacKey[32] = "nonosousfrozen";
+=======
+#define BUFFER_MSG_SIZE 16
+const char *HMAC_KEY = "super_secret_key_123";
+>>>>>>> c57bc64684279d41ceccf60151ccca66dfdf181c
 unsigned long lastSeq = 0;
 AES256 aes;
 char key[32] = "romainsousfrozen";
@@ -30,17 +35,33 @@ SoftwareSerial loraSerial(LORA_RX, LORA_TX);
 // =====================
 // WiFi
 // =====================
+<<<<<<< HEAD
 const char *ssid = "SFR_8B4F";
 const char *password = "5tppls139v6u6lm1h9cs";
+=======
+const char *ssid = "Jean Galaxy S24+";
+const char *password = "ABCDE12345";
+>>>>>>> c57bc64684279d41ceccf60151ccca66dfdf181c
 
 // =====================
 // MQTT
 // =====================
+<<<<<<< HEAD
 const char *mqttServer = "192.168.1.42";
+=======
+const char *mqttServer = "10.207.123.19";
+>>>>>>> c57bc64684279d41ceccf60151ccca66dfdf181c
 const int mqttPort = 1883;
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
+
+
+// =====================
+// Variables
+// =====================
+uint8_t binMsg[BUFFER_MSG_SIZE];
+char decryptedMsg[BUFFER_MSG_SIZE + 1]; // +1 pour le '\0'
 
 // =====================
 // MQTT
