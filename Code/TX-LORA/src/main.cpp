@@ -2,6 +2,7 @@
 #include <SHA256.h>
 #include <Ed25519.h>
 #include <AES.h>
+#include "hmac.h"
 
 //------------------------------------------//
 //-------------  VARIABLE  ----------------//
@@ -14,14 +15,22 @@
 #define LED_PIN          LED_BUILTIN
 #define BLINK_COUNT      3
 #define BLINK_DELAY      200
-#define BUFFER_MSG_SIZE 16
+#define PAYLOAD_SIZE 64
+#define MESSAGE_SIZE 32  // Taille max message
+#define HMAC_SIZE 32     // SHA256 HMAC
 
 uint8_t privateKey[32];
 uint8_t publicKey[32];
-char msgEncrypted[BUFFER_MSG_SIZE];
+char message[MESSAGE_SIZE] = "23"; // message clair
+uint8_t payload[PAYLOAD_SIZE];                      // buffer final
+uint8_t payloadEncrypted[PAYLOAD_SIZE];                      // buffer final
+uint8_t hmacResult[HMAC_SIZE];
 AES256 aes;
-char key[32] = "romainsousfrozen";
-const char* LORA_MSG = "abcdefghijk";
+SHA256 sha;
+char aesKey[32] = "romainsousfrozen";
+char hmacKey[32] = "nonosousfrozen";
+const char* LORA_MSG = "romaingddddd";
+
 
 
 
@@ -45,6 +54,13 @@ String convertHex(const uint8_t* data, size_t len) {
   }
   return hex;
 }
+
+void hexToBinary(const String& hex, uint8_t* output, size_t outlen) {
+  for (size_t i = 0; i < outlen; i++) {
+    String byteString = hex.substring(i*2, i*2+2);
+    output[i] = (uint8_t)strtol(byteString.c_str(), NULL, 16);
+  }
+}
 //-------------------------------------------//
 //-----------   LED FUNCTION  --------------//
 //-----------------------------------------//
@@ -61,31 +77,76 @@ void blink_led_times(uint8_t times, uint16_t delay_ms)
 
 
 //-------------------------------------------//
-//----------- MESSAGE FUNCTION  ------------//
+//------------- AES FUNCTION  --------------//
 //-----------------------------------------//
 
 // Version: le message (et le tableau résultat) doivent faire 16 octets minimum
-void encode_message(const char* msg, char resultEncrypted[16]) 
-{
-    aes.encryptBlock((uint8_t*)resultEncrypted, (const uint8_t*)msg);
+void encode_message(uint8_t* resultEncrypted, uint8_t* msg) {
+    for(int i = 0; i < PAYLOAD_SIZE; i += 16){
+        aes.encryptBlock(resultEncrypted + i, msg + i);
+    }
 }
+
+String decrypt_message(const uint8_t* encrypted, char resultDecrypted[PAYLOAD_SIZE+1]) {
+    for(int i = 0; i < PAYLOAD_SIZE; i += 16){
+        aes.decryptBlock((uint8_t*)resultDecrypted + i, encrypted + i);
+    }
+    resultDecrypted[PAYLOAD_SIZE] = '\0';
+    return String(resultDecrypted);
+}
+
+//-------------------------------------------//
+//-----------  MESSAGE FUNCTION  -----------//
+//-----------------------------------------//
 
 void send_message(const char* msg) 
 {
-  String msgHex = convertHex((uint8_t*)msg, BUFFER_MSG_SIZE);
-  encode_message(msgHex.c_str(), msgEncrypted);
-  LORA_SERIAL.print("AT+TEST=TXLRSTR \"" + String(msgEncrypted)  + "\"");
-  Serial.println("Envoi LoRa : " + convertHex((uint8_t*)msgEncrypted, BUFFER_MSG_SIZE));
-  blink_led_times(BLINK_COUNT, BLINK_DELAY);
-}
+    // --- Chiffrement et envoi ---
+    memset(payload, 0, PAYLOAD_SIZE); // tout à 0
+    memcpy(payload, message, strlen(message)); // copier message
+    createHMAC((uint8_t*)message, payload + MESSAGE_SIZE);//création du hmac
+    encode_message(payloadEncrypted, payload);//encode le message via aes
+    String payloadEncryptedHex = convertHex(payloadEncrypted, PAYLOAD_SIZE);//conversion en hexa
+    LORA_SERIAL.print("AT+TEST=TXLRSTR \"" + payloadEncryptedHex  + "\"");//envoie du message
+    Serial.println("Envoi LoRa : " + payloadEncryptedHex);
+    blink_led_times(BLINK_COUNT, BLINK_DELAY);
 
+
+
+
+
+
+    
+    // --- Test déchiffrement local ---
+    uint8_t test[PAYLOAD_SIZE];
+    char decrypted[PAYLOAD_SIZE+1]; // +1 pour le '\0'
+
+    hexToBinary(payloadEncryptedHex, test, PAYLOAD_SIZE); // On récupère le binaire depuis HEX
+    decrypt_message(test, decrypted);
+    //vérification du hmac
+    uint8_t receivedMessage[MESSAGE_SIZE];
+    uint8_t receivedHMAC[HMAC_SIZE];
+    // Copier le message et le HMAC depuis le buffer déchiffré
+    memcpy(receivedMessage, decrypted, MESSAGE_SIZE);
+    memcpy(receivedHMAC, decrypted + MESSAGE_SIZE, HMAC_SIZE);
+    uint8_t expectedHMAC[HMAC_SIZE];
+    bool verifyhmacvar = verifyHMAC(receivedMessage, receivedHMAC);
+    if(verifyhmacvar){
+      Serial.println("c'est ok le hmac");
+      Serial.println("message : " + String(receivedMessage, MESSAGE_SIZE));
+    }
+    else{
+            Serial.println("nok hmac");
+    }
+
+
+}
 
 //-------------------------------------------//
 //----------- DEFAULT FUNCTION  ------------//
 //-----------------------------------------//
 
-
-void setup() 
+void setup()
 {
   Serial.begin(SERIAL_BAUD);
   LORA_SERIAL.begin(LORA_BAUD);
@@ -101,7 +162,7 @@ void setup()
   String at_rfcfg = String("AT+TEST=RFCFG,") + LORA_FREQ + ",SF" + LORA_SF + ",125,12,15,14,ON,OFF,OFF";
   LORA_SERIAL.println(at_rfcfg);
   //set key ash256
-  aes.setKey(((uint8_t*)key), strlen(key));
+  aes.setKey(((uint8_t*)aesKey), strlen(aesKey));
 }
 
 void loop() {
@@ -141,3 +202,5 @@ void loop() {
 //       Serial.println("Signature INVALIDE !");
 //   }
 // }
+
+

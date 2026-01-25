@@ -5,12 +5,16 @@
 #include <Crypto.h>
 #include <SHA256.h>
 #include <AES.h>
+#include <hmac.h>
+#include <utils.h>
 
 // =====================
 // Sécurité LoRa P2P
 // =====================
-#define BUFFER_MSG_SIZE 16
-const char* HMAC_KEY = "super_secret_key_123";
+#define PAYLOAD_SIZE 64
+#define MESSAGE_SIZE 32  // Taille max message
+#define HMAC_SIZE 32     // SHA256 HMAC
+char hmacKey[32] = "nonosousfrozen";
 unsigned long lastSeq = 0;
 AES256 aes;
 char key[32] = "romainsousfrozen";
@@ -26,54 +30,36 @@ SoftwareSerial loraSerial(LORA_RX, LORA_TX);
 // =====================
 // WiFi
 // =====================
-const char* ssid = "Jean Galaxy S24+";
-const char* password = "ABCDE12345";
+const char *ssid = "SFR_8B4F";
+const char *password = "5tppls139v6u6lm1h9cs";
 
 // =====================
 // MQTT
 // =====================
-const char* mqttServer = "10.208.19.19";
+const char *mqttServer = "192.168.1.42";
 const int mqttPort = 1883;
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
 // =====================
-// Fonctions utilitaires
+// MQTT
 // =====================
-
-String hexToString(const String& hex) 
-{
-  String text = "";
-  // On traite de 2 en 2 caractères
-  for (unsigned int i = 0; i < hex.length(); i += 2) {
-    // Vérifie qu'il reste au moins 2 caractères
-    if (i + 1 >= hex.length()) break;
-
-    String hexByte = hex.substring(i, i + 2);
-    char c = (char) strtol(hexByte.c_str(), NULL, 16);
-    text += c;
-  }
-  return text;
-}
-
-
-String convertHex(const uint8_t* data, size_t len) {
-  String hex = "";
-  for (size_t i = 0; i < len; i++) {
-    if (data[i] < 0x10) hex += "0";       // Ajout d'un zéro pour chaque valeur < 0x10
-    hex += String(data[i], HEX);
-  }
-  return hex;
-}
+char decryptedMsg[PAYLOAD_SIZE + 1]; // +1 pour le '\0'
 
 // Connexion MQTT
-void reconnectMQTT() {
-  while (!mqttClient.connected()) {
+void reconnectMQTT()
+{
+  while (!mqttClient.connected())
+  {
     Serial.print("Connexion MQTT...");
-    if (mqttClient.connect("ArduinoR4_LoRa")) {
+    if (mqttClient.connect("ArduinoR4_LoRa"))
+    {
       Serial.println("OK");
-    } else {
+      Serial.println("[LoRa RX] En écoute...");
+    }
+    else
+    {
       Serial.print(" échec rc=");
       Serial.println(mqttClient.state());
       delay(2000);
@@ -81,22 +67,56 @@ void reconnectMQTT() {
   }
 }
 
-// =====================
-// decrypt message
-// =====================
-String decrypt_message(const char* msg, char resultDecrypted[BUFFER_MSG_SIZE]) 
+
+//-------------------------------------------//
+//------------- AES FUNCTION  --------------//
+//-----------------------------------------//
+
+String decrypt_message(const char* hexMsg, char resultDecrypted[PAYLOAD_SIZE+1]) 
 {
-    aes.decryptBlock((uint8_t*)resultDecrypted, (const uint8_t*)msg);
+    uint8_t binMsg[PAYLOAD_SIZE];
+    String sentHexMessage = hexToString(hexMsg);
+    Serial.println("sentHexMessage : " + sentHexMessage);
+    hexToBinary(sentHexMessage, binMsg, PAYLOAD_SIZE); // On récupère le binaire depuis HEX
+    for(int i = 0; i < PAYLOAD_SIZE; i += 16){
+        aes.decryptBlock((uint8_t*)resultDecrypted + i, binMsg + i);
+    }
+    resultDecrypted[PAYLOAD_SIZE] = '\0';
+    return String(resultDecrypted);
 }
+
+
+//-------------------------------------------//
+//------------- MQTT FUNCTION  --------------//
+//-----------------------------------------//
+
+void publishMessageToMqtt(uint8_t * receivedMessage)
+{
+    char msgBuffer[MESSAGE_SIZE + 1]; // +1 pour '\0'
+    memcpy(msgBuffer, receivedMessage, MESSAGE_SIZE);
+    msgBuffer[MESSAGE_SIZE] = '\0'; // Terminer correctement la chaîne
+    String msg = "{\"temp\":\"" + String(msgBuffer) + "\"}";
+    Serial.println(msg);
+    mqttClient.publish("lora/reception", msg.c_str());
+    Serial.println("Message envoyé au broker MQTT.");
+}
+
+
 
 // =====================
 // SETUP
 // =====================
-void setup() {
+void setup()
+{
+
+  // Set encryption key
+  aes.setKey((uint8_t *)key, strlen(key));
 
   Serial.begin(9600);
   loraSerial.begin(9600);
   pinMode(LED_BUILTIN, OUTPUT);
+
+  Serial.println("[LoRa RX] Initialisation LoRa...");
 
   // ---------- LoRa ----------
   loraSerial.println("AT");
@@ -107,12 +127,13 @@ void setup() {
   loraSerial.println("AT+TEST=RFCFG,868.4,SF7,125,12,15,14,ON,OFF,OFF");
   loraSerial.println("AT+TEST=RXLRPKT");
 
-  Serial.println("[LoRa RX] En écoute...");
+  Serial.println("[LoRa RX] Initialisation Wifi...");
 
   // ---------- WiFi ----------
   Serial.print("Connexion WiFi...");
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(500);
     Serial.print(".");
   }
@@ -128,36 +149,50 @@ void setup() {
 // =====================
 // LOOP
 // =====================
-void loop() {
+void loop()
+{
 
-  // Maintien MQTT
-  if (!mqttClient.connected()) {
+  //Maintien MQTT
+  if (!mqttClient.connected())
+  {
     reconnectMQTT();
   }
   mqttClient.loop();
 
   // ---------- Réception LoRa ----------
-  if (loraSerial.available()) {
+  if (loraSerial.available())
+  {
 
     digitalWrite(LED_BUILTIN, HIGH);
     String input = loraSerial.readStringUntil('\n');
 
-    if (input.indexOf("+TEST: RX") != -1 && input.indexOf("\"") != -1) {
-
+    if (input.indexOf("+TEST: RX") != -1 && input.indexOf("\"") != -1)
+    {
       int firstQuote = input.indexOf('\"');
-      int lastQuote  = input.lastIndexOf('\"');
-
-      if (lastQuote > firstQuote) {
-        
-          String hexMsg = input.substring(firstQuote + 1, lastQuote);
-          // Décodage
-          char msgDecrypted[BUFFER_MSG_SIZE];
-          decrypt_message(hexMsg.c_str(), msgDecrypted);
-          Serial.println(" hex decrypted : " + String(msgDecrypted));
-          // String msgfinal = hexToString(msgDecrypted);
-          // Serial.println("msg decrypted : " + msgfinal);
-          mqttClient.publish("lora/reception", msgDecrypted);
-          Serial.println("Envoyé au broker MQTT");
+      int lastQuote = input.lastIndexOf('\"');
+      if (lastQuote > firstQuote)
+      {
+        Serial.println("Message reçu.");
+        //decrypt message
+        String hexMsg = input.substring(firstQuote + 1, lastQuote);
+        decrypt_message(hexMsg.c_str(), decryptedMsg);
+        //vérification du hmac
+        uint8_t receivedMessage[MESSAGE_SIZE];
+        uint8_t receivedHMAC[HMAC_SIZE];
+        // Copier le message et le HMAC depuis le buffer déchiffré
+        memcpy(receivedMessage, decryptedMsg, MESSAGE_SIZE);
+        memcpy(receivedHMAC, decryptedMsg + MESSAGE_SIZE, HMAC_SIZE);
+        bool verifyhmacvar = verifyHMAC(receivedMessage, receivedHMAC);
+        if(verifyhmacvar)
+        {
+          Serial.println("HMAC OK");
+          publishMessageToMqtt(receivedMessage);
+        }
+        else
+        {
+          Serial.println("HMAC NOT OK [Le message est peut-être corrompu, il ne sera pas envoyé au broker MQTT]");
+        }
+        Serial.println("---------------------------------------------------");
       }
     }
     digitalWrite(LED_BUILTIN, LOW);
