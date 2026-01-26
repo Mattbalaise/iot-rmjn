@@ -2,6 +2,7 @@
 #include <SHA256.h>
 #include <Ed25519.h>
 #include <AES.h>
+#include <ctime> 
 #include "hmac.h"
 
 //------------------------------------------//
@@ -15,20 +16,31 @@
 #define LED_PIN          LED_BUILTIN
 #define BLINK_COUNT      3
 #define BLINK_DELAY      200
-#define PAYLOAD_SIZE 64
-#define MESSAGE_SIZE 32  // Taille max message
+#define MESSAGE_SIZE 41  // Taille max message
 #define HMAC_SIZE 32     // SHA256 HMAC
-
+struct LoRaPayload {
+    uint8_t id_device;               // 1 octet
+    uint16_t seq_count;              // 2 octets (0-65535)
+    uint8_t message[MESSAGE_SIZE];   // 41 octets (ajusté)
+    unsigned long timestamp;                // 4 octets
+    uint8_t hmac[HMAC_SIZE];         // 32 octet
+} __attribute__((packed));           // Total = 80 octets toujours
+#define PAYLOAD_SIZE sizeof(LoRaPayload)
+#define SEQ_COUNT_SIZE sizeof(seq_count)
+#define ID_END_DEVICE_SIZE sizeof(id_device)
+uint8_t payloadEncrypted[PAYLOAD_SIZE];
+LoRaPayload payload;
 uint8_t privateKey[32];
 uint8_t publicKey[32];
-char message[MESSAGE_SIZE] = "23"; // message clair
-uint8_t payload[PAYLOAD_SIZE];                      // buffer final
-uint8_t payloadEncrypted[PAYLOAD_SIZE];                      // buffer final
-uint8_t hmacResult[HMAC_SIZE];
 AES256 aes;
 SHA256 sha;
+// variable globales (à mettre dans un .env par la suite)
+static uint16_t seq_count = 0;
+static uint8_t id_device = 0x01;
+//key pour aes et hmac
 char aesKey[32] = "romainsousfrozen";
 char hmacKey[32] = "nonosousfrozen";
+//message à envoyer
 const char* LORA_MSG = "romaingddddd";
 
 
@@ -87,12 +99,10 @@ void encode_message(uint8_t* resultEncrypted, uint8_t* msg) {
     }
 }
 
-String decrypt_message(const uint8_t* encrypted, char resultDecrypted[PAYLOAD_SIZE+1]) {
+void decrypt_message(const uint8_t* encrypted, LoRaPayload* resultDecrypted) {
     for(int i = 0; i < PAYLOAD_SIZE; i += 16){
         aes.decryptBlock((uint8_t*)resultDecrypted + i, encrypted + i);
     }
-    resultDecrypted[PAYLOAD_SIZE] = '\0';
-    return String(resultDecrypted);
 }
 
 //-------------------------------------------//
@@ -102,44 +112,48 @@ String decrypt_message(const uint8_t* encrypted, char resultDecrypted[PAYLOAD_SI
 void send_message(const char* msg) 
 {
     // --- Chiffrement et envoi ---
-    memset(payload, 0, PAYLOAD_SIZE); // tout à 0
-    memcpy(payload, message, strlen(message)); // copier message
-    createHMAC((uint8_t*)message, payload + MESSAGE_SIZE);//création du hmac
-    encode_message(payloadEncrypted, payload);//encode le message via aes
+    memset(&payload, 0, sizeof(payload)); // tout à 0
+    memcpy(&payload.message, msg, MESSAGE_SIZE); // copier message
+    payload.id_device = id_device; // ID de l'end device
+    payload.seq_count = seq_count++; // incrémenter le compteur de séquence
+    payload.timestamp = millis();
+    // ctime(&payload.timestamp); // timestamp actuel
+    createHMAC((uint8_t*)&payload, payload.hmac, PAYLOAD_SIZE - HMAC_SIZE); // créer HMAC sur le message
+    encode_message(payloadEncrypted, (uint8_t*)&payload);//encode le message via aes
     String payloadEncryptedHex = convertHex(payloadEncrypted, PAYLOAD_SIZE);//conversion en hexa
     LORA_SERIAL.print("AT+TEST=TXLRSTR \"" + payloadEncryptedHex  + "\"");//envoie du message
     Serial.println("Envoi LoRa : " + payloadEncryptedHex);
     blink_led_times(BLINK_COUNT, BLINK_DELAY);
 
-
-
-
-
-
-    
     // --- Test déchiffrement local ---
-    uint8_t test[PAYLOAD_SIZE];
-    char decrypted[PAYLOAD_SIZE+1]; // +1 pour le '\0'
-
-    hexToBinary(payloadEncryptedHex, test, PAYLOAD_SIZE); // On récupère le binaire depuis HEX
-    decrypt_message(test, decrypted);
-    //vérification du hmac
-    uint8_t receivedMessage[MESSAGE_SIZE];
-    uint8_t receivedHMAC[HMAC_SIZE];
-    // Copier le message et le HMAC depuis le buffer déchiffré
-    memcpy(receivedMessage, decrypted, MESSAGE_SIZE);
-    memcpy(receivedHMAC, decrypted + MESSAGE_SIZE, HMAC_SIZE);
-    uint8_t expectedHMAC[HMAC_SIZE];
-    bool verifyhmacvar = verifyHMAC(receivedMessage, receivedHMAC);
-    if(verifyhmacvar){
-      Serial.println("c'est ok le hmac");
-      Serial.println("message : " + String(receivedMessage, MESSAGE_SIZE));
+    Serial.println("\n========== TEST DÉCHIFFREMENT LOCAL ==========");
+    uint8_t testEncrypted[PAYLOAD_SIZE];
+    LoRaPayload testDecrypted;  // Utiliser la struct, pas char[]
+    // 1. Convertir hex → binaire
+    hexToBinary(payloadEncryptedHex, testEncrypted, PAYLOAD_SIZE);
+    // 2. Déchiffrer dans la struct
+    decrypt_message(testEncrypted, &testDecrypted);
+    // 3. Afficher les données déchiffrées
+    Serial.print("ID déchiffré: 0x");
+    Serial.println(testDecrypted.id_device, HEX);
+    Serial.print("SEQ déchiffré: ");
+    Serial.println(testDecrypted.seq_count);
+    Serial.print("TimeStamp déchiffré: ");
+    Serial.println(testDecrypted.timestamp);
+    Serial.print("Message déchiffré: ");
+    for(int i = 0; i < MESSAGE_SIZE && testDecrypted.message[i] != 0; i++) {
+        Serial.print((char)testDecrypted.message[i]);
     }
-    else{
-            Serial.println("nok hmac");
+    Serial.println();
+    Serial.print("HMAC reçu (premiers 8 octets): ");
+    printHex(testDecrypted.hmac, 8);
+    // 4. Vérifier le HMAC (passer toute la struct)
+    if (verifyHMAC((uint8_t*)&testDecrypted, testDecrypted.hmac, PAYLOAD_SIZE - HMAC_SIZE)) {
+        Serial.println(" HMAC VALIDE - Message authentique ");
+    } else {
+        Serial.println("HMAC INVALIDE - Message falsifié !");
     }
-
-
+    Serial.println("==============================================\n");
 }
 
 //-------------------------------------------//
