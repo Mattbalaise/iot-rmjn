@@ -3,7 +3,11 @@
 #include <Ed25519.h>
 #include <AES.h>
 #include <ctime> 
+#include <WiFiS3.h>
 #include "hmac.h"
+#include <time.h>
+#include <WiFiUdp.h>
+#include <NTPClient.h>
 
 //------------------------------------------//
 //-------------  VARIABLE  ----------------//
@@ -16,15 +20,19 @@
 #define LED_PIN          LED_BUILTIN
 #define BLINK_COUNT      3
 #define BLINK_DELAY      200
-#define MESSAGE_SIZE 41  // Taille max message
+#define MESSAGE_SIZE 39  // Taille max message
 #define HMAC_SIZE 32     // SHA256 HMAC
+
+
 struct LoRaPayload {
     uint8_t id_device;               // 1 octet
-    uint16_t seq_count;              // 2 octets (0-65535)
-    uint8_t message[MESSAGE_SIZE];   // 41 octets (ajusté)
-    unsigned long timestamp;                // 4 octets
+    uint32_t seq_count;              // 4 octets (0-4294967295)
+    uint8_t message[MESSAGE_SIZE];   // 39 octets (ajusté)
+    uint32_t timestamp;                // 4 octets
     uint8_t hmac[HMAC_SIZE];         // 32 octet
 } __attribute__((packed));           // Total = 80 octets toujours
+
+
 #define PAYLOAD_SIZE sizeof(LoRaPayload)
 #define SEQ_COUNT_SIZE sizeof(seq_count)
 #define ID_END_DEVICE_SIZE sizeof(id_device)
@@ -41,8 +49,47 @@ static uint8_t id_device = 0x01;
 char aesKey[32] = "romainsousfrozen";
 char hmacKey[32] = "nonosousfrozen";
 //message à envoyer
-const char* LORA_MSG = "romaingddddd";
+const char* LORA_MSG = "jeansousfrozen";
 
+
+// =====================
+// WiFi
+// =====================
+const char *ssid = "POCO F3";
+const char *password = "0123456789";
+
+
+// =====================
+// NTP
+// =====================
+WiFiUDP ntpUDP;
+NTPClient ntpClient(ntpUDP, "pool.ntp.org", 0, 60000);
+
+// =====================
+// Time state
+// =====================
+uint32_t baseEpoch = 0;
+uint32_t baseMillis = 0;
+
+// =====================
+// Sync NTP
+// =====================
+bool syncTime() {
+  if (!ntpClient.update()) {
+    return false;
+  }
+
+  baseEpoch = ntpClient.getEpochTime();
+  baseMillis = millis();
+  return true;
+}
+
+// =====================
+// Current Unix timestamp
+// =====================
+uint32_t now() {
+  return baseEpoch + (millis() - baseMillis) / 1000;
+}
 
 
 
@@ -116,9 +163,9 @@ void send_message(const char* msg)
     memcpy(&payload.message, msg, MESSAGE_SIZE); // copier message
     payload.id_device = id_device; // ID de l'end device
     payload.seq_count = seq_count++; // incrémenter le compteur de séquence
-    payload.timestamp = millis();
-    // ctime(&payload.timestamp); // timestamp actuel
+    payload.timestamp = now(); // timestamp actuel
     createHMAC((uint8_t*)&payload, payload.hmac, PAYLOAD_SIZE - HMAC_SIZE); // créer HMAC sur le message
+
     encode_message(payloadEncrypted, (uint8_t*)&payload);//encode le message via aes
     String payloadEncryptedHex = convertHex(payloadEncrypted, PAYLOAD_SIZE);//conversion en hexa
     LORA_SERIAL.print("AT+TEST=TXLRSTR \"" + payloadEncryptedHex  + "\"");//envoie du message
@@ -166,6 +213,33 @@ void setup()
   LORA_SERIAL.begin(LORA_BAUD);
   pinMode(LED_PIN, OUTPUT);
 
+  // ---------- WiFi ----------
+  Serial.print("Connexion WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+  }
+  
+  // NTP init
+  ntpClient.begin();
+
+  delay(500);
+  
+  if (syncTime()) {
+    Serial.print("Time synced: ");
+    Serial.println(baseEpoch);
+  } else {
+    Serial.println("NTP sync failed");
+  }
+
+  Serial.println("\nWiFi connecté");
+  Serial.print("IP Arduino : ");
+  Serial.println(WiFi.localIP());
+
+  delay(1000);
+
   Serial.println("Initializing LoRa Module...");
   LORA_SERIAL.println("AT");
   LORA_SERIAL.println("AT+RESET");
@@ -180,11 +254,21 @@ void setup()
 }
 
 void loop() {
+  static unsigned long lastResync = 0;
+
   if(LORA_SERIAL.available()) {
     send_message(LORA_MSG);
     Serial.println("Sent packet");
-    delay(1000);
   }
+
+  if (millis() - lastResync > 600000UL) {
+    if (syncTime()) {
+      Serial.println("NTP resynced");
+    }
+  lastResync = millis();
+  }
+
+  delay(1000);
 }
 
 

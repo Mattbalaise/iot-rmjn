@@ -30,13 +30,13 @@ SoftwareSerial loraSerial(LORA_RX, LORA_TX);
 // =====================
 // WiFi
 // =====================
-const char *ssid = "SFR_8B4F";
-const char *password = "5tppls139v6u6lm1h9cs";
+const char *ssid = "POCO F3";
+const char *password = "0123456789";
 
 // =====================
 // MQTT
 // =====================
-const char *mqttServer = "192.168.1.42";
+const char *mqttServer = "10.187.221.149";
 const int mqttPort = 1883;
 
 WiFiClient wifiClient;
