@@ -11,14 +11,23 @@
 // =====================
 // Sécurité LoRa P2P
 // =====================
-#define PAYLOAD_SIZE 64
-#define MESSAGE_SIZE 32  // Taille max message
+#define MESSAGE_SIZE 39  // Taille max message
 #define HMAC_SIZE 32     // SHA256 HMAC
 char hmacKey[32] = "nonosousfrozen";
 unsigned long lastSeq = 0;
 AES256 aes;
 char key[32] = "romainsousfrozen";
 char resultDecrypted[100];
+
+struct LoRaPayload {
+    uint8_t id_device;               // 1 octet
+    uint32_t seq_count;              // 4 octets (0-4294967295)
+    uint8_t message[MESSAGE_SIZE];   // 39 octets (ajusté)
+    uint32_t timestamp;                // 4 octets
+    uint8_t hmac[HMAC_SIZE];         // 32 octet
+} __attribute__((packed));           // Total = 80 octets toujours
+
+#define PAYLOAD_SIZE sizeof(LoRaPayload)
 
 // =====================
 // LoRa
@@ -41,12 +50,6 @@ const int mqttPort = 1883;
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
-
-// =====================
-// MQTT
-// =====================
-char decryptedMsg[PAYLOAD_SIZE + 1]; // +1 pour le '\0'
-
 // Connexion MQTT
 void reconnectMQTT()
 {
@@ -71,18 +74,16 @@ void reconnectMQTT()
 //-------------------------------------------//
 //------------- AES FUNCTION  --------------//
 //-----------------------------------------//
-
-String decrypt_message(const char* hexMsg, char resultDecrypted[PAYLOAD_SIZE+1]) 
+void decrypt_message(const char* hexMsg, uint8_t resultDecrypted[PAYLOAD_SIZE]) 
 {
+    memset(resultDecrypted, 0, PAYLOAD_SIZE);
     uint8_t binMsg[PAYLOAD_SIZE];
     String sentHexMessage = hexToString(hexMsg);
     Serial.println("sentHexMessage : " + sentHexMessage);
     hexToBinary(sentHexMessage, binMsg, PAYLOAD_SIZE); // On récupère le binaire depuis HEX
     for(int i = 0; i < PAYLOAD_SIZE; i += 16){
-        aes.decryptBlock((uint8_t*)resultDecrypted + i, binMsg + i);
+      aes.decryptBlock(resultDecrypted + i, binMsg + i);
     }
-    resultDecrypted[PAYLOAD_SIZE] = '\0';
-    return String(resultDecrypted);
 }
 
 
@@ -108,7 +109,6 @@ void publishMessageToMqtt(uint8_t * receivedMessage)
 // =====================
 void setup()
 {
-
   // Set encryption key
   aes.setKey((uint8_t *)key, strlen(key));
 
@@ -173,18 +173,29 @@ void loop()
         Serial.println("Message reçu.");
         //decrypt message
         String hexMsg = input.substring(firstQuote + 1, lastQuote);
-        decrypt_message(hexMsg.c_str(), decryptedMsg);
+        uint8_t resultDecrypted[PAYLOAD_SIZE];
+        decrypt_message(hexMsg.c_str(), resultDecrypted);
+        LoRaPayload lora = *(LoRaPayload *)resultDecrypted;
+        // Serial.print("ID Device: ");
+        // Serial.println(lora.id_device);
+        // Serial.print("Seq Count: ");
+        // Serial.println(lora.seq_count);
+        // Serial.print("Timestamp: ");
+        // Serial.println(lora.timestamp);
+        // Serial.print("Message: ");
+        // Serial.println((char*)lora.message);
+        // Serial.println();
+        // Serial.print("HMAC Reçu: ");
+        // for(int i = 0; i < HMAC_SIZE; i++) {
+        //   Serial.print(lora.hmac[i], HEX);
+        // }
+        // Serial.println();
         //vérification du hmac
-        uint8_t receivedMessage[MESSAGE_SIZE];
-        uint8_t receivedHMAC[HMAC_SIZE];
-        // Copier le message et le HMAC depuis le buffer déchiffré
-        memcpy(receivedMessage, decryptedMsg, MESSAGE_SIZE);
-        memcpy(receivedHMAC, decryptedMsg + MESSAGE_SIZE, HMAC_SIZE);
-        bool verifyhmacvar = verifyHMAC(receivedMessage, receivedHMAC);
+        bool verifyhmacvar = verifyHMAC((uint8_t*)&lora, lora.hmac, PAYLOAD_SIZE - HMAC_SIZE);
         if(verifyhmacvar)
         {
           Serial.println("HMAC OK");
-          publishMessageToMqtt(receivedMessage);
+          publishMessageToMqtt(lora.message);
         }
         else
         {
