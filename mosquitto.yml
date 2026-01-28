@@ -1,0 +1,22 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data      # Persister les sessions
+      - mosquitto_logs:/mosquitto/log
+    networks:
+      - iot_network
+
+volumes:
+  mosquitto_data:  # Important pour conserver les sessions
+  mosquitto_logs:
+
+networks:
+  iot_network:
+    driver: bridge

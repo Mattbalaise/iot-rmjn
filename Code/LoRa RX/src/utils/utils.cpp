@@ -1,11 +1,12 @@
+#include <utils/utils.h>
+#include <Arduino.h>
+#include <regex>
 
-
-String hexToString(const String &hex)
+String hexToAscii(const String &hex)
 {
   String hexClean = hex;
   hexClean.trim();
   String text = "";
-
   // On traite de 2 en 2 caractères
   for (unsigned int i = 0; i < hexClean.length(); i += 2)
   {
@@ -39,4 +40,29 @@ String convertHex(const uint8_t *data, size_t len)
     hex += String(data[i], HEX);
   }
   return hex;
+}
+
+bool checkFormatMessage(const String &message)
+{
+  std::regex pattern(R"(([\w]+):([\w.]+))");
+  return std::regex_match(message.c_str(), pattern);
+}
+
+void printLoraPayload(LoRaPayload lora)
+{
+      Serial.println();
+      Serial.print("ID Device: ");
+      Serial.println(lora.id_device);
+      Serial.print("Seq Count: ");
+      Serial.println(lora.seq_count);
+      Serial.print("Timestamp: ");
+      Serial.println(lora.timestamp);
+      Serial.print("Message: ");
+      Serial.println((char*)lora.message);
+      Serial.println();
+      Serial.print("HMAC Reçu: ");
+      for(int i = 0; i < HMAC_SIZE; i++) {
+        Serial.print(lora.hmac[i], HEX);
+      }
+      Serial.println();
 }

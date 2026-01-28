@@ -1,0 +1,11 @@
+#include <Arduino.h>
+#include <config/config.h>
+//  NTP
+bool syncTime();
+uint32_t now();
+void sync_ntp_clock();
+void init_ntp_clock();
+// WIFI
+void init_wifi();
+// LORA
+void init_lora_config();
