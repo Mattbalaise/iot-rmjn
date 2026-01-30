@@ -1,5 +1,7 @@
 #include <security/security.h>
 
+uint32_t last_seq_count = 0;
+
 //-------------------------------------------//
 //------------- AES FUNCTION  --------------//
 //-----------------------------------------//
@@ -52,4 +54,15 @@ LoRaPayload decrypt_secure_message(String input){
         return lora;
     }
     return {};// Retourne une structure vide si la décryption échoue
+}
+
+//----------------------------------------//
+// Fonction pour vérifier la séquence
+//----------------------------------------//
+bool verifySeq(uint32_t seq_count){
+    if(seq_count > last_seq_count){
+        last_seq_count = seq_count;
+        return true; // Séquence valide
+    }
+    return false; // Séquence invalide (rejetée)
 }

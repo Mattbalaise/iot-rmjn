@@ -6,6 +6,10 @@
 		{
 			"name": "TX-LORA",
 			"path": "../.."
+		},
+		{
+			"name": "LoRa RX",
+			"path": "../../../LoRa RX"
 		}
 	],
 	"settings": {}

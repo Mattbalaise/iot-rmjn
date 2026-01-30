@@ -54,7 +54,15 @@ void loop()
         if(verifyhmacvar)
         {
           Serial.println("HMAC OK");
-          publishMessageToMqtt(lora.message);
+          if(verifySeq(lora.seq_count))
+            {
+              Serial.println("Séquence OK");
+              publishMessageToMqtt(lora.message);
+            }
+            else
+            {
+              Serial.println("Séquence NOT OK [Message en double ou hors séquence]");
+            }
         }
         else
         {

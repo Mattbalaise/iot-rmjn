@@ -28,6 +28,7 @@ struct LoRaPayload {
 extern char hmacKey[32];
 extern char aesKey[32];
 extern unsigned long lastSeq;
+extern uint32_t last_seq_count;
 extern AES256 aes;
 extern char key[32];
 // LoRa
