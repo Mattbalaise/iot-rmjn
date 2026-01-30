@@ -1,6 +1,6 @@
 #ifndef CONFIG_H
 #define CONFIG_H
-
+#include <map>
 #include <Arduino.h>
 #include <AES.h>
 #include <PubSubClient.h>
@@ -8,7 +8,7 @@
 #include <SoftwareSerial.h>
 #include <SHA256.h>
 // CONSTANTES
-#define MESSAGE_SIZE 39
+#define MESSAGE_SIZE 55
 #define HMAC_SIZE 32
 #define LORA_RX 0
 #define LORA_TX 1
@@ -16,10 +16,10 @@
 struct LoRaPayload {
     uint8_t id_device;               // 1 octet
     uint32_t seq_count;              // 4 octets
-    uint8_t message[MESSAGE_SIZE];   // 39 octets
+    uint8_t message[MESSAGE_SIZE];   // 55 octets
     uint32_t timestamp;              // 4 octets
     uint8_t hmac[HMAC_SIZE];         // 32 octets
-} __attribute__((packed));           // Total = 80 octets
+} __attribute__((packed));           // Total = 96 octets
 #define PAYLOAD_SIZE sizeof(LoRaPayload)
 // =====================
 // VARIABLES GLOBALES (déclarations extern)
@@ -39,4 +39,5 @@ extern const char* password;
 extern const char* mqttServer;
 extern const int mqttPort;
 extern PubSubClient mqttClient;
+extern std::map<std::uint16_t, std::pair<std::string, std::string>> device_room;
 #endif

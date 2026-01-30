@@ -44,7 +44,7 @@ String convertHex(const uint8_t *data, size_t len)
 
 bool checkFormatMessage(const String &message)
 {
-  std::regex pattern(R"(([\w]+):([\w.]+))");
+  std::regex pattern(R"(([\w]+:[\w.]+;?)+)");
   return std::regex_match(message.c_str(), pattern);
 }
 
@@ -58,7 +58,7 @@ void printLoraPayload(LoRaPayload lora)
       Serial.print("Timestamp: ");
       Serial.println(lora.timestamp);
       Serial.print("Message: ");
-      Serial.println((char*)lora.message);
+      Serial.println(String((char*)lora.message));
       Serial.println();
       Serial.print("HMAC Reçu: ");
       for(int i = 0; i < HMAC_SIZE; i++) {

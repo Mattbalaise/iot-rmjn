@@ -27,11 +27,11 @@ void sync_ntp_clock()
   }
 }
 
-void init_ntp_clock(){
+void init_ntp_clock()
+{
       // NTP init
   ntpClient.begin();
   delay(500);
-  
   if (syncTime())
   {
     Serial.print("Time synced: ");
@@ -67,3 +67,4 @@ void init_lora_config()
   String at_rfcfg = String("AT+TEST=RFCFG,") + LORA_FREQ + ",SF" + LORA_SF + ",125,12,15,14,ON,OFF,OFF";
   LORA_SERIAL.println(at_rfcfg);
 }
+

@@ -5,30 +5,6 @@ void initMqttClient()
   mqttClient.setServer(mqttServer, mqttPort);
 }
 
-String FormatMsgMqtt(char * msgBuffer)
-{
-    std::vector<std::string> mesures;
-    std::string msgStr(msgBuffer);  // Créer une std::string
-    split(mesures, msgStr, ",");    // split modifie msgStr
-   String output = "{";
-    for(int i = 0; i < mesures.size(); i++)
-    {
-      std::string mesure = mesures[i];
-      size_t delimiterPos = mesure.find(':');
-      if (delimiterPos != std::string::npos) 
-      {
-          std::string key = mesure.substr(0, delimiterPos);
-          std::string value = mesure.substr(delimiterPos + 1);
-          output += "\"" + String(key.c_str()) + "\":\"" + String(value.c_str()) + "\"";
-          if(i < mesures.size() - 1)
-          {
-            output += ",";
-          }
-      }
-    }
-    output += "}";
-    return output;
-}
 
 void publishMessageToMqtt(uint8_t * receivedMessage)
 {
@@ -41,10 +17,33 @@ void publishMessageToMqtt(uint8_t * receivedMessage)
       Serial.println("Format de message invalide. Le message ne sera pas envoyé au broker MQTT.");
       return;
     }
-    String output = FormatMsgMqtt(msgBuffer);
-    mqttClient.publish("lora/reception", output.c_str());
-    Serial.println("Message envoyé au broker MQTT.");
+    
+    //split des valeurs
+    std::vector<std::string> mesures;
+    std::string msgStr(msgBuffer);  // Créer une std::string
+    split(mesures, msgStr, ";");    // split modifie msgStr
+    String output;
+    for(int i = 0; i < mesures.size(); i++)
+    {
+        output = "{";
+        size_t delimiterPos = mesures[i].find(':');
+        std::pair<std::string, std::string> room_infos = device_room[1]; 
+        if (delimiterPos != std::string::npos) 
+        {
+            std::string key = mesures[i].substr(0, delimiterPos);
+            std::string value = mesures[i].substr(delimiterPos + 1);
+            output += "\"" + String(key.c_str()) + "\":\"" + String(value.c_str()) + "\"";
+            output += "}";
+            Serial.println("Message formaté pour MQTT: " + String(key.c_str()) + " -> " + output);
+            String topic = "iot/campus/" + String(room_infos.first.c_str()) + "/" + String(room_infos.second.c_str()) + "/" + String(key.c_str());
+            Serial.println("Topic MQTT: " + topic);
+            mqttClient.publish(topic.c_str(), output.c_str());
+            Serial.println("Message envoyé au broker MQTT.");
+          }
+    }
 }
+
+
 // Connexion MQTT
 void reconnectMQTT()
 {
@@ -69,6 +68,7 @@ void reconnectMQTT()
 //Maintient mqtt
 void mqttLoop()
 {
+  
   if (!mqttClient.connected())
   {
     reconnectMQTT();
@@ -79,7 +79,7 @@ void mqttLoop()
 // ---------- WiFi ----------
 void connectWifi()
 {
-  Serial.print("Connexion WiFi...");
+  Serial.println("[LoRa RX] Connexion WiFi...");
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -101,6 +101,6 @@ void initLora(){
   loraSerial.println("AT+MODE=TEST");
   delay(500);
   loraSerial.println("AT+TEST=RFCFG,868.4,SF7,125,12,15,14,ON,OFF,OFF");
+  delay(500);
   loraSerial.println("AT+TEST=RXLRPKT");
-  Serial.println("[LoRa RX] Initialisation Wifi...");
 }

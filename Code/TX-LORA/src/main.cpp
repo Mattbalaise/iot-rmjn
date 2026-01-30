@@ -21,8 +21,8 @@ void setup()
   aes.setKey(((uint8_t*)aesKey), strlen(aesKey));
 }
 
-void loop() {
-
+void loop() 
+{
   if(LORA_SERIAL.available())
   {
     String secure_message_str = secure_message(LORA_MSG);
@@ -31,3 +31,7 @@ void loop() {
   sync_ntp_clock();
   delay(1000);
 }
+//-------------------------------------------//
+// blockchain
+// seq
+// mqtt tls

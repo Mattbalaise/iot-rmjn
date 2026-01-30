@@ -38,9 +38,17 @@ void loop()
     String input = loraSerial.readStringUntil('\n');
     if (input.indexOf("+TEST: RX") != -1 && input.indexOf("\"") != -1)
     {
-      LoRaPayload lora = decrypt_secure_message(input);
-      if(lora.id_device != 0)
+      int firstQuote = input.indexOf('\"');
+      int lastQuote = input.lastIndexOf('\"');
+      if (lastQuote > firstQuote)
       {
+        Serial.println("Message reçu.");
+        //decrypt message
+        String hexMsg = input.substring(firstQuote + 1, lastQuote);
+        uint8_t resultDecrypted[PAYLOAD_SIZE];
+        decrypt_message(hexMsg.c_str(), resultDecrypted);
+        LoRaPayload lora = *(LoRaPayload *)resultDecrypted;
+        printLoraPayload(lora);
         //vérification du hmac
         bool verifyhmacvar = verifyHMAC((uint8_t*)&lora, lora.hmac, PAYLOAD_SIZE - HMAC_SIZE);
         if(verifyhmacvar)
@@ -51,12 +59,12 @@ void loop()
         else
         {
           Serial.println("HMAC NOT OK [Le message est peut-être corrompu, il ne sera pas envoyé au broker MQTT]");
-        } 
-      }
+        }
         Serial.println("---------------------------------------------------");
       }
+        digitalWrite(LED_BUILTIN, LOW);
+        delay(200);
+        loraSerial.println("AT+TEST=RXLRPKT");
     }
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(500);
-    loraSerial.println("AT+TEST=RXLRPKT");
   }
+}

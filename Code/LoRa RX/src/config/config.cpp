@@ -1,4 +1,5 @@
 #include <config/config.h>
+#include <map>
 // =====================
 // Sécurité LoRa P2P
 // =====================
@@ -18,10 +19,19 @@ WiFiClient wifiClient;
 // =====================
 // MQTT
 // =====================
-const char* mqttServer = "10.128.241.223";
+const char* mqttServer = "10.31.154.149";
 const int mqttPort = 1883;
 PubSubClient mqttClient(wifiClient);
 // =====================
 // AES
 // ====================
 AES256 aes;
+
+//faire un dictonnaire en c++ 
+std::map<std::uint16_t, std::pair<std::string, std::string>> device_room = {
+    {1, {"Kastler", "128"}},
+    {2, {"Kastler","127"}},
+    {3, {"Kastler","101"}},
+    {4, {"Schweitzer","203"}},
+    {5, {"Schweitzer","217"}}
+};
