@@ -52,7 +52,7 @@ void decrypt_message(const uint8_t* encrypted, LoRaPayload* resultDecrypted) {
 //-------------  MESSAGE FUNCTION  -----------//
 //-----------------------------------------//
 
-String secure_message(char * msg)
+String secure_message(const char * msg)
 {
         // --- Chiffrement et envoi ---
     LoRaPayload lora = LoRaPayload();
@@ -69,7 +69,7 @@ String secure_message(char * msg)
 void send_secure_message(String secure_message_str)
 {
     LORA_SERIAL.print("AT+TEST=TXLRSTR \"" + secure_message_str  + "\"");//envoie du message
-    Serial.println("Envoi LoRa : " + secure_message_str);
+    Serial.println("Message envoyé LoRa : " + secure_message_str);
     blink_led_times(BLINK_COUNT, BLINK_DELAY);
     decode_local_message(secure_message_str);//stockage du message chiffré globalement
 }
@@ -86,8 +86,8 @@ void decode_local_message(String payloadEncryptedHex)
     // 2. Déchiffrer dans la struct
     decrypt_message(testEncrypted, &testDecrypted);
     // 3. Afficher les données déchiffrées
-    Serial.print("ID déchiffré: 0x");
-    Serial.println(testDecrypted.id_device, HEX);
+    Serial.print("ID déchiffré: ");
+    Serial.println(testDecrypted.id_device);
     Serial.print("SEQ déchiffré: ");
     Serial.println(testDecrypted.seq_count);
     Serial.print("TimeStamp déchiffré: ");

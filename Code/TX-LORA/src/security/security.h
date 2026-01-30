@@ -18,7 +18,7 @@ void encode_message(uint8_t* resultEncrypted, uint8_t* msg);
 
 void decrypt_message(const uint8_t* encrypted, LoRaPayload* resultDecrypted);
 //-------------  MESSAGE FUNCTION  -----------//
-String secure_message(char * msg);
+String secure_message(const char * msg);
 
 void send_secure_message(String secure_message_str);
 

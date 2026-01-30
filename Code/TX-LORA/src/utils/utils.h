@@ -15,3 +15,5 @@ void hexToBinary(const String& hex, uint8_t* output, size_t outlen);
 //-----------------------------------------//
 
 void blink_led_times(uint8_t times, uint16_t delay_ms) ;
+
+String format_message(float* data);

@@ -40,3 +40,11 @@ void blink_led_times(uint8_t times, uint16_t delay_ms)
     delay(delay_ms);
   }
 }
+
+String format_message(float* data){
+  String message = "";
+  message += "temp:" + String(data[0], 2) + ";"
+  "humidity:" + String(data[1], 2) + ";" +
+  "pressure:" + String(data[2]) + ";";
+  return message;
+}

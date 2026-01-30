@@ -19,26 +19,26 @@ uint32_t now() {
 
 void sync_ntp_clock()
 {
-    if (millis() - lastResync > 600000UL) {
+  if (millis() - lastResync > 600000UL) {
     if (syncTime()) {
       Serial.println("NTP resynced");
     }
-  lastResync = millis();
+    lastResync = millis();
   }
 }
 
-void init_ntp_clock()
-{
-      // NTP init
+void init_ntp_clock(){
+  // NTP init
   ntpClient.begin();
   delay(500);
-  if (syncTime())
-  {
-    Serial.print("Time synced: ");
-    Serial.println(baseEpoch);
-  } else {
-    Serial.println("NTP sync failed");
+  
+  while(syncTime() == false) {
+    Serial.println("NTP sync failed, retrying...");
+    delay(2000);
   }
+
+  Serial.print("Time synced: ");
+  Serial.println(baseEpoch);
 }
   // ---------- WiFi ----------
 void init_wifi(){
@@ -50,6 +50,7 @@ void init_wifi(){
         Serial.print(".");
     }
     Serial.println("\nWiFi connecté");
+    delay(500);
     Serial.print("IP Arduino : ");
     Serial.println(WiFi.localIP());
 }
