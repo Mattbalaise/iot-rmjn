@@ -21,17 +21,17 @@
 #define LED_PIN          LED_BUILTIN
 #define BLINK_COUNT      3
 #define BLINK_DELAY      200
-#define MESSAGE_SIZE 39  // Taille max message
+#define MESSAGE_SIZE 55  // Taille max message
 #define HMAC_SIZE 32     // SHA256 HMAC
 
 
 struct LoRaPayload {
     uint8_t id_device;               // 1 octet
     uint32_t seq_count;              // 4 octets (0-4294967295)
-    uint8_t message[MESSAGE_SIZE];   // 39 octets (ajusté)
+    uint8_t message[MESSAGE_SIZE];   // 55 octets (ajusté)
     uint32_t timestamp;                // 4 octets
     uint8_t hmac[HMAC_SIZE];         // 32 octet
-} __attribute__((packed));           // Total = 80 octets toujours
+} __attribute__((packed));           // Total = 96 octets toujours
 
 
 #define PAYLOAD_SIZE sizeof(LoRaPayload)
